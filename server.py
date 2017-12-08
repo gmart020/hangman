@@ -81,7 +81,7 @@ class Game(Thread):
 
         screen += '\n\n'
         
-        for i, player in enumerate(self.player_list):
+        for i, player in enumerate(self.order_list):
             screen = screen + player + ' ' + str(self.score_list[player])
             if i == self.turn:
                 screen += ' *'
@@ -105,17 +105,18 @@ class Game(Thread):
         return result
         
     def handle_guess(self, guess, player):
-        if player == self.order_list[self.turn]:
-            if len(guess) > 1:
-                if guess != self.word:
-                    return -1
-                else:
-                    self.cur_word = self.word
-                    self.score_list[player] += len(self.word)
-                    return 2
-            elif len(guess) == 0:
-                return 0
+        #if player == self.order_list[self.turn]:
+        if len(guess) > 1:
+            if guess != self.word:
+                return -1
             else:
+                self.cur_word = self.word
+                self.score_list[player] += len(self.word)
+                return 2
+        elif len(guess) == 0:
+            return 0
+        else:
+            if player == self.order_list[self.turn]:
                 if guess in self.guessed or guess in self.cur_word:
                     return 0
                 else:
@@ -140,7 +141,8 @@ class Game(Thread):
                         self.guessed.add(guess)
                         if len(self.guessed) == self.max_guess:
                             return -2
-      
+            return 3
+            
     def send_state(self):
         state = self.game_state()
         for player in self.player_list:
@@ -151,7 +153,9 @@ class Game(Thread):
         self.send_state()
         while 1:
             socks = self.get_socks()
+            print socks
             reads, writes, errors = select.select(socks, [], [])
+            print reads
             while not reads:
                 pass
                 # #idk what this does
@@ -160,58 +164,59 @@ class Game(Thread):
             #recieve response from a client
             response = reads[0].recv(1024)
             response = response.split(':')
+            print response
 
-            if response[0] != 'NEW':
-                guess = response[0]
-                sender = response[1]
-                result = self.handle_guess(guess, sender)
-                
-                if result == -1:
-                    self.player_list[sender].conn.send('game over:' + you_lose)
-                    self.remove_player(sender)
-                    if self.turn >= len(self.order_list) and len(self.order_list) > 0:
-                        self.turn = 0
-                    else:
-                        active_games.remove(self)
-                        # All players lost
-                        return 
-                elif result == -2:
-                    message = 'game over:'
-                    message += '\n******************************\n'
-                    message +='  Max Guess Attempts Reached\n'
-                    message +='          Game Over\n'
-                    message +='******************************\n\n'
-                    message += self.game_state()
-                    for i, player in enumerate(self.player_list):
-                        self.player_list[player].conn.send(message)
-                    game_lock.acquire()
-                    active_games.remove(self)    
-                    game_lock.release()
-                    return
-                    
-                elif result == 0:
-                    if self.turn == len(self.order_list) - 1:
-                        self.turn = 0
-                    else:
-                        self.turn += 1
-                        
-                    self.send_state()
-                        
-                elif result == 2:
-                    message = 'game over:'
-                    message += '\n******************************\n      '
-                    message += sender
-                    message += ' Wins\n'
-                    message +='******************************\n\n'
-                    message += self.game_state()
-                    for i, person in enumerate(self.player_list):
-                        self.player_list[person].conn.send(message)
-                    game_lock.acquire()
-                    active_games.remove(self)    
-                    game_lock.release()
-                    return
+            guess = response[0]
+            sender = response[1]
+            result = self.handle_guess(guess, sender)
+            
+            if result == -1:
+                self.player_list[sender].conn.send('game over:' + you_lose)
+                self.remove_player(sender)
+                self.send_state()
+                if self.turn >= len(self.order_list) and len(self.order_list) > 0:
+                    self.turn = 0
                 else:
-                    self.send_state()
+                    active_games.remove(self)
+                    # All players lost
+                    return 
+            elif result == -2:
+                message = 'game over:'
+                message += '\n******************************\n'
+                message +='  Max Guess Attempts Reached\n'
+                message +='          Game Over\n'
+                message +='******************************\n\n'
+                message += self.game_state()
+                for i, player in enumerate(self.player_list):
+                    self.player_list[player].conn.send(message)
+                game_lock.acquire()
+                active_games.remove(self)    
+                game_lock.release()
+                return
+                
+            elif result == 0:
+                if self.turn == len(self.order_list) - 1:
+                    self.turn = 0
+                else:
+                    self.turn += 1
+                    
+                self.send_state()
+                    
+            elif result == 2:
+                message = 'game over:'
+                message += '\n******************************\n      '
+                message += sender
+                message += ' Wins\n'
+                message +='******************************\n\n'
+                message += self.game_state()
+                for i, person in enumerate(self.player_list):
+                    self.player_list[person].conn.send(message)
+                game_lock.acquire()
+                active_games.remove(self)    
+                game_lock.release()
+                return
+            elif result == 3:
+                self.send_state()
             else:
                 self.send_state()
                 

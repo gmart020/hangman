@@ -75,16 +75,14 @@ def exit_game():
     sys.exit()
     
 def join_game():
-    name = receive_message()
-    message = 'NEW:'+ name
-    send_message(message)
     response = receive_message()
     response = response.split(':')
     while response[0] != 'game over':
+        global name
         print ''
         print response[0]
         input = raw_input('Enter your guess: ')
-        reply = input + ':' + response[1] + ':' 
+        reply = input + ':' + name 
         send_message(reply)
         response = receive_message()
         response = response.split(':')
@@ -94,8 +92,8 @@ def join_game():
 def start_game():
     response = receive_message()
     response = response.split(':')
-    global name
     while response[0] != 'game over':
+        global name
         print ''
         print response[0]
         input = raw_input('Enter your guess: ')
